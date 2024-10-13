@@ -62,6 +62,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     ema_loss_for_log = 0.0
     ema_dist_for_log = 0.0
     ema_normal_for_log = 0.0
+    ema_depth_map_for_log = 0.0
+    ema_normal_map_for_log = 0.0
 
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
@@ -151,9 +153,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # Step5 更新
         with torch.no_grad():
             # Progress bar
+            # ema平滑
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
             ema_dist_for_log = 0.4 * dist_loss.item() + 0.6 * ema_dist_for_log
             ema_normal_for_log = 0.4 * normal_loss.item() + 0.6 * ema_normal_for_log
+            # ++也加ema
+            ema_depth_map_for_log = 0.4 * depth_loss.item() + 0.6 * ema_depth_map_for_log
+            ema_normal_map_for_log = 0.4 * normal_loss.item() + 0.6 * ema_normal_map_for_log
 
             # 每10次就处理一次显示
             if iteration % 10 == 0:
@@ -161,7 +167,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     "Loss": f"{ema_loss_for_log:.{5}f}",
                     "distort": f"{ema_dist_for_log:.{5}f}",
                     "normal": f"{ema_normal_for_log:.{5}f}",
-                    "Points": f"{len(gaussians.get_xyz)}"
+                    "Points": f"{len(gaussians.get_xyz)}",
+                    "depth_map": f"{ema_depth_map_for_log:.{5}f}",
+                    "normal_map": f"{ema_normal_map_for_log:.{5}f}"
                 }
                 progress_bar.set_postfix(loss_dict)
 
@@ -175,6 +183,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if tb_writer is not None:
                 tb_writer.add_scalar('train_loss_patches/dist_loss', ema_dist_for_log, iteration)
                 tb_writer.add_scalar('train_loss_patches/normal_loss', ema_normal_for_log, iteration)
+                tb_writer.add_scalar('train_loss_patches/depth_map_loss', ema_depth_map_for_log, iteration)
+                tb_writer.add_scalar('train_loss_patches/normal_map_loss', ema_normal_map_for_log, iteration)
 
             training_report(tb_writer, iteration, Ll1, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background))
             if (iteration in saving_iterations):
@@ -190,13 +200,36 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
                 # 到了致密化间隔了
                 # 该过程会根据当前视角的点密度和梯度信息，动态增加或者修剪高斯点。密度化可以确保模型捕捉到更多的场景细节，而修剪则是为了去掉不必要的点，从而避免过多的计算负担。
+                # if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                #     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                #     # 密度化的梯度阈值 --- 这个值控制了哪些高斯点需要被加入密度化计算，基于它们的梯度大小
+                #     # 表示是否要根据点的不透明度来剔除高斯点 --- 如果某些点的透明度过高，它们可能会被剔除
+                #     # 表示场景中摄像机的范围 --- 可能会影响到密度化的点的选择
+                #     # 用于剔除点的大小阈值 --- 当迭代次数超过 opt.opacity_reset_interval 时，阈值为20，否则为 None
+                #     gaussians.densify_and_prune(opt.densify_grad_threshold, opt.opacity_cull, scene.cameras_extent, size_threshold)
+
+                # ++改 在迭代达到致密化间隔时，动态调整高斯点
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                    size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                    # 密度化的梯度阈值 --- 这个值控制了哪些高斯点需要被加入密度化计算，基于它们的梯度大小
-                    # 表示是否要根据点的不透明度来剔除高斯点 --- 如果某些点的透明度过高，它们可能会被剔除
-                    # 表示场景中摄像机的范围 --- 可能会影响到密度化的点的选择
-                    # 用于剔除点的大小阈值 --- 当迭代次数超过 opt.opacity_reset_interval 时，阈值为20，否则为 None
-                    gaussians.densify_and_prune(opt.densify_grad_threshold, opt.opacity_cull, scene.cameras_extent, size_threshold)
+                    size_threshold = 20
+                    # ++从深度图中计算梯度，检测几何变化区域
+                    if scene.has_depth:
+                        # ++要测试
+                        some_threshold = 5
+                        gt_depth = viewpoint_cam.depth_image.cuda()
+                        depth_gradients = torch.abs(torch.gradient(gt_depth))  # 计算深度图梯度
+                        high_gradient_mask = (depth_gradients > some_threshold)  # 根据阈值筛选高几何变化区域
+
+                        # ++将高几何变化区域加入到高斯点密度调整中
+                        gaussians.densify_and_prune(
+                            opt.densify_grad_threshold, 
+                            opt.opacity_cull, 
+                            scene.cameras_extent, 
+                            size_threshold, 
+                            high_gradient_mask
+                        )
+                    else:
+                        # ++ 如果没有深度图，则使用原来的密度化方式
+                        gaussians.densify_and_prune(opt.densify_grad_threshold, opt.opacity_cull, scene.cameras_extent, size_threshold)
                 
                 # 在指定的迭代间隔（opt.opacity_reset_interval）后，或者在白色背景下初次密度化时，会对高斯点的不透明度进行重置
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
@@ -287,6 +320,8 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
                     if tb_writer and (idx < 5):
                         from utils.general_utils import colormap
+
+                        # 深度图的可视化和记录  本来就有
                         depth = render_pkg["surf_depth"]
                         norm = depth.max()
                         depth = depth / norm
@@ -308,9 +343,11 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                         except:
                             pass
 
+                        # 记录原始真值图像
                         if iteration == testing_iterations[0]:
                             tb_writer.add_images(config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name), gt_image[None], global_step=iteration)
 
+                    # 计算测试集 L1 和 PSNR 指标
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
 
