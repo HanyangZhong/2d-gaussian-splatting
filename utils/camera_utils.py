@@ -62,13 +62,64 @@ def loadCam(args, id, cam_info, resolution_scale, has_depth=False, has_normal=Fa
         loaded_mask = None
         gt_image = resized_image_rgb
 
-    # 创建 Camera 对象
-    return Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
+    # ++创建 Camera 对象
+    camera = Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
                   FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
                   image=gt_image, gt_alpha_mask=loaded_mask,
                   image_name=cam_info.image_name, uid=id, data_device=args.data_device)
+    
+    # ++如果需要加载深度图
+    if has_depth and hasattr(cam_info, 'depth_path'):
+        depth_image = load_depth_image(cam_info.depth_path, resolution)
+        camera.depth_image = depth_image
 
-def cameraList_from_camInfos(cam_infos, resolution_scale, args):
+     # ++如果需要加载法线图
+    if has_normal and hasattr(cam_info, 'normal_map_path'):
+        normal_map = load_normal_map(cam_info.normal_map_path, resolution)
+        camera.normal_map = normal_map
+
+    return camera
+
+# ++加载深度图
+def load_depth_image(depth_path, resolution):
+    """
+    从路径加载深度图并调整分辨率。
+
+    :param depth_path: 深度图路径
+    :param resolution: 目标分辨率
+    :return: 调整分辨率后的深度图
+    """
+    from PIL import Image
+    depth_image = Image.open(depth_path)
+    depth_image = depth_image.resize(resolution, Image.BILINEAR)
+    return PILtoTorch(depth_image, resolution)
+
+# ++加载法线图
+def load_normal_map(normal_map_path, resolution):
+    """
+    从路径加载法线图并调整分辨率。
+
+    :param normal_map_path: 法线图路径
+    :param resolution: 目标分辨率
+    :return: 调整分辨率后的法线图
+    """
+    from PIL import Image
+    normal_map = Image.open(normal_map_path)
+    normal_map = normal_map.resize(resolution, Image.BILINEAR)
+    return PILtoTorch(normal_map, resolution)
+
+
+def cameraList_from_camInfos(cam_infos, resolution_scale, args, has_depth=False, has_normal=False):
+    """
+    通过摄像机信息加载训练/测试摄像机列表，支持深度图和法线图的加载。
+    
+    :param cam_infos: 摄像机信息列表
+    :param resolution_scale: 分辨率缩放比例
+    :param args: 训练参数
+    :param has_depth: 是否有深度图
+    :param has_normal: 是否有法线图
+    :return: 包含摄像机数据的列表
+    """
     camera_list = []
 
     for id, c in enumerate(cam_infos):
