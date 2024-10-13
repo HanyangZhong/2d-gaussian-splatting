@@ -28,15 +28,22 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
-# 这是整个训练过程的核心函数。它的任务包括：
-# 初始化场景和模型：将数据集加载到高斯模型中，并创建场景对象。
-# 迭代训练：通过循环（for iteration in range(first_iter, opt.iterations + 1)）逐步优化模型。在每次迭代中，随机选择一个视角渲染图像，然后计算损失并进行反向传播。
-# 更新学习率和调整球谐函数（SH degree）：每经过一定的迭代次数，模型会提升球谐函数的阶数（SH degree），从而增加渲染的细节。
-# 损失计算：主要损失函数是L1损失（像素间的绝对误差）和SSIM（结构相似性指标），并且包含正则化项（dist_loss 和 normal_loss）。
-# 保存模型：在预定的迭代次数（如 saving_iterations）时，模型会保存当前的参数状态。
-# 日志记录：使用TensorBoard记录每次迭代的损失值和训练时间。
+# 这是整个训练过程的核心函数。它的任务包括
+# 1 初始化场景和模型
+#       将数据集加载到高斯模型中，并创建场景对象。
+# 2 迭代训练
+#       通过循环（for iteration in range(first_iter, opt.iterations + 1)）逐步优化模型。在每次迭代中，随机选择一个视角渲染图像，然后计算损失并进行反向传播。
+# 3 更新学习率和调整球谐函数（SH degree）
+#       每经过一定的迭代次数，模型会提升球谐函数的阶数（SH degree），从而增加渲染的细节。
+# 4 损失计算
+#       主要损失函数是L1损失（像素间的绝对误差）和SSIM（结构相似性指标），并且包含正则化项（dist_loss 和 normal_loss）。
+# 5 保存模型
+#       在预定的迭代次数（如 saving_iterations）时，模型会保存当前的参数状态。
+# 6 日志记录
+#       使用TensorBoard记录每次迭代的损失值和训练时间。
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint):
     first_iter = 0
+    # step1 初始化场景
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree)
     scene = Scene(dataset, gaussians)
@@ -58,13 +65,17 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
+
+    # step2 迭代训练  随机选择一个视角渲染图像    计算损失并进行反向传播
     for iteration in range(first_iter, opt.iterations + 1):        
 
         iter_start.record()
 
+        # step3 更新学习参数
         gaussians.update_learning_rate(iteration)
 
         # Every 1000 its we increase the levels of SH up to a maximum degree
+        # 更新球谐函数
         if iteration % 1000 == 0:
             gaussians.oneupSHdegree()
 
@@ -73,25 +84,38 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
         
+        # 随机选的视角 渲染
         render_pkg = render(viewpoint_cam, gaussians, pipe, background)
+        # 提取里面的参数  图像  视角点  可视化滤波器   半径
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         
+        # 取出原视角上的图片作为真值
         gt_image = viewpoint_cam.original_image.cuda()
+        # 计算 L1 loss  像素间的绝对误差
         Ll1 = l1_loss(image, gt_image)
+        #         权重 反过来                          权重         SSIM（结构相似性指标）
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         
         # regularization
+        # 法线一致性  权重
         lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
+        # 深度失真项 权重
         lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
 
+        # 深度失真项
         rend_dist = render_pkg["rend_dist"]
+        # 渲染法线
         rend_normal  = render_pkg['rend_normal']
+        # 表面法线
         surf_normal = render_pkg['surf_normal']
+        # 法线误差 loss
         normal_error = (1 - (rend_normal * surf_normal).sum(dim=0))[None]
         normal_loss = lambda_normal * (normal_error).mean()
+        # 深度失真
         dist_loss = lambda_dist * (rend_dist).mean()
 
         # loss
+        # 像素真值损失 + 深度失真损失  +  法线一致性损失
         total_loss = loss + dist_loss + normal_loss
         
         total_loss.backward()
@@ -104,7 +128,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             ema_dist_for_log = 0.4 * dist_loss.item() + 0.6 * ema_dist_for_log
             ema_normal_for_log = 0.4 * normal_loss.item() + 0.6 * ema_normal_for_log
 
-
+            # 每10次就处理一次显示
             if iteration % 10 == 0:
                 loss_dict = {
                     "Loss": f"{ema_loss_for_log:.{5}f}",
@@ -115,6 +139,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 progress_bar.set_postfix(loss_dict)
 
                 progress_bar.update(10)
+
+            # 迭代完就退出
             if iteration == opt.iterations:
                 progress_bar.close()
 
@@ -127,7 +153,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
-
 
             # Densification
             if iteration < opt.densify_until_iter:
