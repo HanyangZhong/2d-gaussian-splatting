@@ -179,22 +179,28 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
             # Optimizer step
             if iteration < opt.iterations:
+                # 更新模型参数
                 gaussians.optimizer.step()
+                # 梯度清零
                 gaussians.optimizer.zero_grad(set_to_none = True)
 
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
 
+        # 远程可视化连接
         with torch.no_grad():        
             if network_gui.conn == None:
                 network_gui.try_connect(dataset.render_items)
             while network_gui.conn != None:
                 try:
                     net_image_bytes = None
+                    # 获取参数   
                     custom_cam, do_training, keep_alive, scaling_modifer, render_mode = network_gui.receive()
                     if custom_cam != None:
+                        # 渲染包
                         render_pkg = render(custom_cam, gaussians, pipe, background, scaling_modifer)   
+                        # 图片
                         net_image = render_net_image(render_pkg, dataset.render_items, render_mode, custom_cam)
                         net_image_bytes = memoryview((torch.clamp(net_image, min=0, max=1.0) * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy())
                     metrics_dict = {
@@ -295,8 +301,11 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
 if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Training script parameters")
+    # 模型参数加载
     lp = ModelParams(parser)
+    # 优化器参数
     op = OptimizationParams(parser)
+    # 管道参数
     pp = PipelineParams(parser)
     parser.add_argument('--ip', type=str, default="127.0.0.1")
     parser.add_argument('--port', type=int, default=6009)
