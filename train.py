@@ -115,7 +115,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             cos_similarity = (rendered_normal * gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
             normal_map_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
 
-
         # 下面都是属于正则化，没有真值，主要是约束
         # regularization
         # 法线一致性  权重
