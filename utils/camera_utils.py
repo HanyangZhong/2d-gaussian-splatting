@@ -16,9 +16,22 @@ from utils.graphics_utils import fov2focal
 
 WARNED = False
 
-def loadCam(args, id, cam_info, resolution_scale):
+# ++新增两个量
+def loadCam(args, id, cam_info, resolution_scale, has_depth=False, has_normal=False):
+    """
+    加载摄像机信息，并根据需要加载深度图和法线图。
+
+    :param args: 程序参数，包含配置选项
+    :param id: 摄像机 ID
+    :param cam_info: 摄像机信息，包含图像、位姿等
+    :param resolution_scale: 分辨率缩放比例
+    :param has_depth: 是否加载深度图
+    :param has_normal: 是否加载法线图
+    :return: Camera 对象，包含所有摄像机信息
+    """
     orig_w, orig_h = cam_info.image.size
 
+    # 处理分辨率调整逻辑
     if args.resolution in [1, 2, 4, 8]:
         resolution = round(orig_w/(resolution_scale * args.resolution)), round(orig_h/(resolution_scale * args.resolution))
     else:  # should be a type that converts to float
@@ -38,6 +51,7 @@ def loadCam(args, id, cam_info, resolution_scale):
         scale = float(global_down) * float(resolution_scale)
         resolution = (int(orig_w / scale), int(orig_h / scale))
 
+    # 处理图像和掩码
     if len(cam_info.image.split()) > 3:
         import torch
         resized_image_rgb = torch.cat([PILtoTorch(im, resolution) for im in cam_info.image.split()[:3]], dim=0)
@@ -48,6 +62,7 @@ def loadCam(args, id, cam_info, resolution_scale):
         loaded_mask = None
         gt_image = resized_image_rgb
 
+    # 创建 Camera 对象
     return Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
                   FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
                   image=gt_image, gt_alpha_mask=loaded_mask,
