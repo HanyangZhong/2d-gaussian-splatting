@@ -28,6 +28,13 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
+# 这是整个训练过程的核心函数。它的任务包括：
+# 初始化场景和模型：将数据集加载到高斯模型中，并创建场景对象。
+# 迭代训练：通过循环（for iteration in range(first_iter, opt.iterations + 1)）逐步优化模型。在每次迭代中，随机选择一个视角渲染图像，然后计算损失并进行反向传播。
+# 更新学习率和调整球谐函数（SH degree）：每经过一定的迭代次数，模型会提升球谐函数的阶数（SH degree），从而增加渲染的细节。
+# 损失计算：主要损失函数是L1损失（像素间的绝对误差）和SSIM（结构相似性指标），并且包含正则化项（dist_loss 和 normal_loss）。
+# 保存模型：在预定的迭代次数（如 saving_iterations）时，模型会保存当前的参数状态。
+# 日志记录：使用TensorBoard记录每次迭代的损失值和训练时间。
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint):
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
