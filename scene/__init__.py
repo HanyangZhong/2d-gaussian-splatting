@@ -23,12 +23,20 @@ class Scene:
     gaussians : GaussianModel
 
     def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0]):
-        """b
-        :param path: Path to colmap scene main folder.
+        """
+        :param args: Model parameters including paths and settings.
+        :param gaussians: Gaussian model object.
+        :param load_iteration: Specific iteration to load.
+        :param shuffle: Shuffle the training and testing cameras.
+        :param resolution_scales: List of resolution scales to use for different camera views.
         """
         self.model_path = args.model_path
         self.loaded_iter = None
         self.gaussians = gaussians
+        # ++新增
+        self.has_depth = False
+        self.has_normal = False
+
 
         if load_iteration:
             if load_iteration == -1:
@@ -48,6 +56,17 @@ class Scene:
         else:
             assert False, "Could not recognize scene type!"
 
+        # Check if depth and normal maps are available
+        # ++新增是否有深度或者法线图
+        if hasattr(scene_info, 'depth_images') and scene_info.depth_images:
+            self.has_depth = True
+            print("Depth images found in the dataset")
+        
+        if hasattr(scene_info, 'normal_maps') and scene_info.normal_maps:
+            self.has_normal = True
+            print("Normal maps found in the dataset")
+
+        # If no model is loaded, copy PLY file and create Gaussian point cloud
         if not self.loaded_iter:
             with open(scene_info.ply_path, 'rb') as src_file, open(os.path.join(self.model_path, "input.ply") , 'wb') as dest_file:
                 dest_file.write(src_file.read())
@@ -68,11 +87,13 @@ class Scene:
 
         self.cameras_extent = scene_info.nerf_normalization["radius"]
 
+        # Load train and test cameras with support for depth and normal maps
         for resolution_scale in resolution_scales:
+            # ++新增深度和法线
             print("Loading Training Cameras")
-            self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args)
+            self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args, self.has_depth, self.has_normal)
             print("Loading Test Cameras")
-            self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args)
+            self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args, self.has_depth, self.has_normal)
         
         if self.loaded_iter:
             self.gaussians.load_ply(os.path.join(self.model_path,
