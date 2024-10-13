@@ -20,6 +20,7 @@ def psnr(img1, img2):
     mse = (((img1 - img2)) ** 2).view(img1.shape[0], -1).mean(1, keepdim=True)
     return 20 * torch.log10(1.0 / torch.sqrt(mse))
 
+# 梯度图
 def gradient_map(image):
     sobel_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]).float().unsqueeze(0).unsqueeze(0).cuda()/4
     sobel_y = torch.tensor([[-1, -2, -1], [0, 0, 0], [1, 2, 1]]).float().unsqueeze(0).unsqueeze(0).cuda()/4
@@ -31,6 +32,7 @@ def gradient_map(image):
 
     return magnitude
 
+# 颜色图
 def colormap(map, cmap="turbo"):
     colors = torch.tensor(plt.cm.get_cmap(cmap).colors).to(map.device)
     map = (map - map.min()) / (map.max() - map.min())
@@ -38,6 +40,7 @@ def colormap(map, cmap="turbo"):
     map = colors[map].permute(2,0,1)
     return map
 
+# 渲染包里面的所有信息
 def render_net_image(render_pkg, render_items, render_mode, camera):
     output = render_items[render_mode].lower()
     if output == 'alpha':

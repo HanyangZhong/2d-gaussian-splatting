@@ -96,12 +96,34 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         #         权重 反过来                          权重         SSIM（结构相似性指标）
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         
+        # ++深度图和法线图损失的计算
+        depth_loss, normal_map_loss = 0.0, 0.0
+
+        # ++如果场景中有深度图，则计算深度图损失
+        if scene.has_depth:
+            rendered_depth = render_pkg['surf_depth']  # 渲染得到的深度图
+            gt_depth = viewpoint_cam.depth_image.cuda()  # 真实的深度图
+            depth_loss = l1_loss(rendered_depth, gt_depth)  # 使用 L1 损失计算深度差异
+
+        # ++如果场景中有法线图，则计算法线图损失
+        if scene.has_normal:
+            rendered_normal = render_pkg['rend_normal']  # 渲染得到的法线图
+            gt_normal = viewpoint_cam.normal_map.cuda()  # 真实的法线图
+            # 使用余弦相似度计算法线对齐损失
+            cos_similarity = (rendered_normal * gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
+            normal_map_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
+
+
         # 下面都是属于正则化，没有真值，主要是约束
         # regularization
         # 法线一致性  权重
-        lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
+        # lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
         # 深度失真项 权重
-        lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
+        # lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
+
+        # ++改 正则化的权重可以动态调节，或者直接关闭
+        lambda_normal = opt.lambda_normal if (iteration > 7000 and not scene.has_normal) else 0.0
+        lambda_dist = opt.lambda_dist if (iteration > 3000 and not scene.has_depth) else 0.0
 
         # 深度失真项
         rend_dist = render_pkg["rend_dist"]
@@ -117,8 +139,11 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         # loss
         # 像素真值损失 + 深度失真损失  +  法线一致性损失
-        total_loss = loss + dist_loss + normal_loss
+        # total_loss = loss + dist_loss + normal_loss
         
+        # ++改 总损失：真值损失 + 正则化损失（如果适用）
+        total_loss = loss + depth_loss + normal_map_loss + normal_loss + dist_loss
+
         total_loss.backward()
 
         iter_end.record()
