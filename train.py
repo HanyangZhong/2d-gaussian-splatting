@@ -91,11 +91,12 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         
         # 取出原视角上的图片作为真值
         gt_image = viewpoint_cam.original_image.cuda()
-        # 计算 L1 loss  像素间的绝对误差
+        # Step4 计算 L1 loss  像素间的绝对误差
         Ll1 = l1_loss(image, gt_image)
         #         权重 反过来                          权重         SSIM（结构相似性指标）
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         
+        # 下面都是属于正则化，没有真值，主要是约束
         # regularization
         # 法线一致性  权重
         lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
@@ -122,6 +123,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         iter_end.record()
 
+        # Step5 更新
         with torch.no_grad():
             # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
@@ -156,13 +158,22 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
             # Densification
             if iteration < opt.densify_until_iter:
+                # 更新了每个高斯点的最大半径   通过调整高斯点的半径，模型能够更准确地表示那些在当前视角下显得更重要的高斯点（比如更靠近摄像机的点）
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+                # 会根据当前的 视角空间点 和 可见性过滤器 ，更新和记录密度化统计数据
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
+                # 到了致密化间隔了
+                # 该过程会根据当前视角的点密度和梯度信息，动态增加或者修剪高斯点。密度化可以确保模型捕捉到更多的场景细节，而修剪则是为了去掉不必要的点，从而避免过多的计算负担。
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                    # 密度化的梯度阈值 --- 这个值控制了哪些高斯点需要被加入密度化计算，基于它们的梯度大小
+                    # 表示是否要根据点的不透明度来剔除高斯点 --- 如果某些点的透明度过高，它们可能会被剔除
+                    # 表示场景中摄像机的范围 --- 可能会影响到密度化的点的选择
+                    # 用于剔除点的大小阈值 --- 当迭代次数超过 opt.opacity_reset_interval 时，阈值为20，否则为 None
                     gaussians.densify_and_prune(opt.densify_grad_threshold, opt.opacity_cull, scene.cameras_extent, size_threshold)
                 
+                # 在指定的迭代间隔（opt.opacity_reset_interval）后，或者在白色背景下初次密度化时，会对高斯点的不透明度进行重置
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
                     gaussians.reset_opacity()
 
