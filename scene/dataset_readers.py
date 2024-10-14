@@ -113,18 +113,23 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, depth_folde
 
         # 加载法线图
         normal_image = Image.open(normal_path) if normal_path and os.path.exists(normal_path) else None
+        print("normal type is:",type(normal_image))
 
         if depth_image is None and normal_image is None:
             suplmentary_image_type = 0
+            print("No special image")
         elif depth_image is None:
             # only have normal
             suplmentary_image_type = 1
+            print("Have depth image")
         elif normal_image is None:
             # only have depth
             suplmentary_image_type = 2
+            print("Have normal image")
         else:
             # have both
             suplmentary_image_type = 3
+            print("Have Depth and normal image")
 
         # ++ 保存深度图和法线图信息
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
@@ -176,8 +181,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 
     reading_dir = "images" if images == None else images
-    depth_dir = "depth_images"  # 假设深度图保存在 depth_maps 目录下
-    normal_dir = "normal_images"  # 假设法线图保存在 normal_maps 目录下
+    depth_dir = "depth"  # 假设深度图保存在 depth_maps 目录下
+    normal_dir = "normal"  # 假设法线图保存在 normal_maps 目录下
 
     # ++加载相机和深度或者normal
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir),depth_folder=os.path.join(path, depth_dir),normal_folder=os.path.join(path, normal_dir))
@@ -190,7 +195,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         train_cam_infos = cam_infos
         test_cam_infos = []
 
-    suple_image_type = cam_infos.suple_image_type
+    suple_image_type = cam_infos[0].suple_image_type
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
 
