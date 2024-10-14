@@ -1,4 +1,4 @@
-#
+# ++改过
 # Copyright (C) 2023, Inria
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
@@ -35,7 +35,7 @@ class Scene:
         self.gaussians = gaussians
         # ++新增
         self.has_depth = False
-        self.has_normal = False
+        self.has_normal = True
 
 
         if load_iteration:
