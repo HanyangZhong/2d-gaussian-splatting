@@ -99,7 +99,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         
         # ++深度图和法线图损失的计算
-        depth_loss, normal_map_loss = 0.0, 0.0
+        depth_loss, normal_image_loss = 0.0, 0.0
 
         # ++如果场景中有深度图，则计算深度图损失
         if scene.has_depth:
@@ -110,10 +110,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # ++如果场景中有法线图，则计算法线图损失
         if scene.has_normal:
             rendered_normal = render_pkg['rend_normal']  # 渲染得到的法线图
-            gt_normal = viewpoint_cam.normal_map.cuda()  # 真实的法线图
+            gt_normal = viewpoint_cam.normal_image.cuda()  # 真实的法线图
             # 使用余弦相似度计算法线对齐损失
             cos_similarity = (rendered_normal * gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
-            normal_map_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
+            normal_image_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
 
         # 下面都是属于正则化，没有真值，主要是约束
         # regularization
@@ -143,7 +143,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # total_loss = loss + dist_loss + normal_loss
         
         # ++改 总损失：真值损失 + 正则化损失（如果适用）
-        total_loss = loss + depth_loss + normal_map_loss + normal_loss + dist_loss
+        total_loss = loss + 0.5* depth_loss + 0.5* normal_image_loss + normal_loss + dist_loss
 
         total_loss.backward()
 
