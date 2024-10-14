@@ -65,6 +65,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     ema_depth_map_for_log = 0.0
     ema_normal_map_for_log = 0.0
 
+    # ++深度图和法线图损失的计算
+    # depth_loss, normal_image_loss = 0.0, 0.0
+    depth_loss, normal_image_loss = torch.tensor(0.0), torch.tensor(0.0)
+
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
 
@@ -98,9 +102,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         #         权重 反过来                          权重         SSIM（结构相似性指标）
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         
-        # ++深度图和法线图损失的计算
-        depth_loss, normal_image_loss = 0.0, 0.0
-
         # ++如果场景中有深度图，则计算深度图损失
         if scene.has_depth:
             rendered_depth = render_pkg['surf_depth']  # 渲染得到的深度图
