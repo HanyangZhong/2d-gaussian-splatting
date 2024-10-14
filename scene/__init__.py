@@ -58,13 +58,20 @@ class Scene:
 
         # Check if depth and normal maps are available
         # ++新增是否有深度或者法线图
-        if hasattr(scene_info, 'depth_images') and scene_info.depth_images:
-            self.has_depth = True
-            print("Depth images found in the dataset")
-        
-        if hasattr(scene_info, 'normal_maps') and scene_info.normal_maps:
+        if scene_info.suple_image_type==1:
+            self.has_depth = False
             self.has_normal = True
-            print("Normal maps found in the dataset")
+            print("Normal images found in the dataset")
+        
+        elif scene_info.suple_image_type==2:
+            self.has_depth = True
+            self.has_normal = False
+            print("Depth images found in the dataset")
+
+        elif scene_info.suple_image_type==3:
+            self.has_depth = True
+            self.has_normal = True
+            print("Depth Normal images found in the dataset")
 
         # If no model is loaded, copy PLY file and create Gaussian point cloud
         if not self.loaded_iter:

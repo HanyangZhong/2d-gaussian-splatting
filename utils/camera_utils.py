@@ -56,27 +56,41 @@ def loadCam(args, id, cam_info, resolution_scale, has_depth=False, has_normal=Fa
         import torch
         resized_image_rgb = torch.cat([PILtoTorch(im, resolution) for im in cam_info.image.split()[:3]], dim=0)
         loaded_mask = PILtoTorch(cam_info.image.split()[3], resolution)
+        # if has_depth:
+        #     resized_depth_image_rgb = torch.cat([PILtoTorch(im, resolution) for im in cam_info.depth_image.split()[:3]], dim=0)
+        #     loaded_depth_mask = PILtoTorch(cam_info.depth_image.split()[3], resolution)
+        # if has_normal:
+        #     resized_normal_image_rgb = torch.cat([PILtoTorch(im, resolution) for im in cam_info.normal_image.split()[:3]], dim=0)
+        #     loaded_normal_mask = PILtoTorch(cam_info.normal_image.split()[3], resolution)
         gt_image = resized_image_rgb
     else:
         resized_image_rgb = PILtoTorch(cam_info.image, resolution)
         loaded_mask = None
         gt_image = resized_image_rgb
 
+    resized_depth_image = None
+    resized_normal_image = None
+
+    if has_depth:
+        resized_depth_image = PILtoTorch(cam_info.depth_image, resolution)
+    if has_normal:
+        resized_normal_image = PILtoTorch(cam_info.normal_image, resolution)
+
     # ++创建 Camera 对象
     camera = Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
                   FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
-                  image=gt_image, gt_alpha_mask=loaded_mask,
+                  image=gt_image, gt_alpha_mask=loaded_mask,depth_image=resized_depth_image,normal_image=resized_normal_image,
                   image_name=cam_info.image_name, uid=id, data_device=args.data_device)
     
     # ++如果需要加载深度图
-    if has_depth and hasattr(cam_info, 'depth_path'):
-        depth_image = load_depth_image(cam_info.depth_path, resolution)
-        camera.depth_image = depth_image
+    # if has_depth:
+    #     depth_image = load_depth_image(cam_info.depth_image, resolution)
+    #     camera.depth_image = depth_image
 
-     # ++如果需要加载法线图
-    if has_normal and hasattr(cam_info, 'normal_map_path'):
-        normal_map = load_normal_map(cam_info.normal_map_path, resolution)
-        camera.normal_map = normal_map
+    # ++如果需要加载法线图
+    # if has_normal:
+    #     normal_map = load_normal_map(cam_info.normal_image, resolution)
+    #     camera.normal_map = normal_map
 
     return camera
 

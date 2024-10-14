@@ -30,6 +30,9 @@ class CameraInfo(NamedTuple):
     FovY: np.array
     FovX: np.array
     image: np.array
+    depth_image: np.array
+    normal_image: np.array
+    suple_image_type: int
     image_path: str
     image_name: str
     width: int
@@ -41,6 +44,7 @@ class SceneInfo(NamedTuple):
     test_cameras: list
     nerf_normalization: dict
     ply_path: str
+    suple_image_type: int
 
 def getNerfppNorm(cam_info):
     def get_center_and_diag(cam_centers):
@@ -65,6 +69,7 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
+# ++
 def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, depth_folder=None, normal_folder=None):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
@@ -109,12 +114,24 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, depth_folde
         # 加载法线图
         normal_image = Image.open(normal_path) if normal_path and os.path.exists(normal_path) else None
 
-        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
-                              image_path=image_path, image_name=image_name, width=width, height=height)
-        
+        if depth_image is None and normal_image is None:
+            suplmentary_image_type = 0
+        elif depth_image is None:
+            # only have normal
+            suplmentary_image_type = 1
+        elif normal_image is None:
+            # only have depth
+            suplmentary_image_type = 2
+        else:
+            # have both
+            suplmentary_image_type = 3
+
         # ++ 保存深度图和法线图信息
-        cam_info.depth_image = depth_image
-        cam_info.normal_map = normal_image
+        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+                              image_path=image_path, image_name=image_name, depth_image=depth_image, normal_image=normal_image, width=width, height=height,suple_image_type=suplmentary_image_type)
+        
+        # cam_info.depth_image = depth_image
+        # cam_info.normal_map = normal_image
 
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
@@ -145,6 +162,7 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
+# ++
 def readColmapSceneInfo(path, images, eval, llffhold=8):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
@@ -172,6 +190,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         train_cam_infos = cam_infos
         test_cam_infos = []
 
+    suple_image_type = cam_infos.suple_image_type
+
     nerf_normalization = getNerfppNorm(train_cam_infos)
 
     ply_path = os.path.join(path, "sparse/0/points3D.ply")
@@ -193,7 +213,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
                            train_cameras=train_cam_infos,
                            test_cameras=test_cam_infos,
                            nerf_normalization=nerf_normalization,
-                           ply_path=ply_path)
+                           ply_path=ply_path,
+                           suple_image_type=suple_image_type)
     return scene_info
 
 def readCamerasFromTransforms(path, transformsfile, white_background, extension=".png"):
@@ -206,6 +227,10 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
         frames = contents["frames"]
         for idx, frame in enumerate(frames):
             cam_name = os.path.join(path, frame["file_path"] + extension)
+
+            # 假设深度图和法线图路径在 frame 的信息中有定义
+            depth_path = os.path.join(path, frame.get("depth_file_path", f"depth_{idx}{extension}"))
+            normal_path = os.path.join(path, frame.get("normal_file_path", f"normal_{idx}{extension}"))
 
             # NeRF 'transform_matrix' is a camera-to-world transform
             c2w = np.array(frame["transform_matrix"])
