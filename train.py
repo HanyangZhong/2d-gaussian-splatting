@@ -63,7 +63,7 @@ def ensure_directory_exists(path):
 #       在预定的迭代次数（如 saving_iterations）时，模型会保存当前的参数状态。
 # 6 日志记录
 #       使用TensorBoard记录每次迭代的损失值和训练时间。
-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint):
+def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, path):
     first_iter = 0
     # step1 初始化场景
     tb_writer = prepare_output_and_logger(dataset)
@@ -142,8 +142,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
             # 每10次迭代保存一次法线图
             if iteration % 10 == 0:
-                save_path_rendered = f"{args.model_path}/debug/rendered_normal_{iteration}.png"
-                save_path_gt = f"{args.model_path}/debug/gt_normal_{iteration}.png"
+                save_path_rendered = f"{path}/debug/rendered_normal_{iteration}.png"
+                save_path_gt = f"{path}/debug/gt_normal_{iteration}.png"
 
                 # 确保目录存在
                 ensure_directory_exists(save_path_rendered)
@@ -427,7 +427,7 @@ if __name__ == "__main__":
     # Start GUI server, configure and run training
     network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
-    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint)
+    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.model_path)
 
     # All done
     print("\nTraining complete.")
