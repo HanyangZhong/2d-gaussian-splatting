@@ -44,6 +44,7 @@ class ParamGroup:
                 setattr(group, arg[0], arg[1])
         return group
 
+# 渲染类型
 class ModelParams(ParamGroup): 
     def __init__(self, parser, sentinel=False):
         self.sh_degree = 3

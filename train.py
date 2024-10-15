@@ -28,6 +28,20 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
+import torchvision.transforms as T
+from PIL import Image
+
+# 保存 tensor 到 PNG 文件的函数
+def save_tensor_as_image(tensor, path):
+    """
+    将 tensor 保存为 PNG 图像。
+    """
+    tensor = tensor.detach().cpu()  # 将 tensor 移到 CPU，并确保没有梯度
+    tensor = torch.clamp(tensor, 0.0, 1.0)  # 将值限制在 [0, 1] 范围内
+    transform = T.ToPILImage()
+    image = transform(tensor)
+    image.save(path)
+
 # 这是整个训练过程的核心函数。它的任务包括
 # 1 初始化场景和模型
 #       将数据集加载到高斯模型中，并创建场景对象。
@@ -107,6 +121,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             rendered_depth = render_pkg['surf_depth']  # 渲染得到的深度图
             gt_depth = viewpoint_cam.depth_image.cuda()  # 真实的深度图
             depth_loss = l1_loss(rendered_depth, gt_depth)  # 使用 L1 损失计算深度差异
+            # print('using Depth L1 as',depth_loss)
 
         # ++如果场景中有法线图，则计算法线图损失
         if scene.has_normal:
@@ -115,17 +130,29 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             # 使用余弦相似度计算法线对齐损失
             cos_similarity = (rendered_normal * gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
             normal_image_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
+            # print('using Normal L1 as',normal_image_loss)
+
+            # 每10次迭代保存一次法线图
+            if iteration % 10 == 0:
+                save_path_rendered = f"{args.model_path}/debug/rendered_normal_{iteration}.png"
+                save_path_gt = f"{args.model_path}/debug/gt_normal_{iteration}.png"
+
+                # 保存渲染和真实的法线图
+                save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
+                save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
+                print(f"Saved rendered and GT normals for iteration {iteration}")
+
 
         # 下面都是属于正则化，没有真值，主要是约束
         # regularization
         # 法线一致性  权重
-        # lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
+        lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
         # 深度失真项 权重
-        # lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
+        lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
 
         # ++改 正则化的权重可以动态调节，或者直接关闭
-        lambda_normal = opt.lambda_normal if (iteration > 7000 and not scene.has_normal) else 0.0
-        lambda_dist = opt.lambda_dist if (iteration > 3000 and not scene.has_depth) else 0.0
+        # lambda_normal = opt.lambda_normal if (iteration > 7000 and not scene.has_normal) else 0.0
+        # lambda_dist = opt.lambda_dist if (iteration > 3000 and not scene.has_depth) else 0.0
 
         # 深度失真项
         rend_dist = render_pkg["rend_dist"]
@@ -144,7 +171,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # total_loss = loss + dist_loss + normal_loss
         
         # ++改 总损失：真值损失 + 正则化损失（如果适用）
-        total_loss = loss + 0.5* depth_loss + 0.5* normal_image_loss + normal_loss + dist_loss
+        total_loss = loss + 0.5 * depth_loss + 0.5* normal_image_loss + normal_loss + dist_loss
 
         total_loss.backward()
 
@@ -159,7 +186,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             ema_normal_for_log = 0.4 * normal_loss.item() + 0.6 * ema_normal_for_log
             # ++也加ema
             ema_depth_map_for_log = 0.4 * depth_loss.item() + 0.6 * ema_depth_map_for_log
-            ema_normal_map_for_log = 0.4 * normal_loss.item() + 0.6 * ema_normal_map_for_log
+            ema_normal_map_for_log = 0.4 * normal_image_loss.item() + 0.6 * ema_normal_map_for_log
 
             # 每10次就处理一次显示
             if iteration % 10 == 0:
@@ -370,7 +397,7 @@ if __name__ == "__main__":
     # 管道参数
     pp = PipelineParams(parser)
     parser.add_argument('--ip', type=str, default="127.0.0.1")
-    parser.add_argument('--port', type=int, default=6009)
+    parser.add_argument('--port', type=int, default=6006)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
     parser.add_argument("--test_iterations", nargs="+", type=int, default=[7_000, 30_000])
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 30_000])

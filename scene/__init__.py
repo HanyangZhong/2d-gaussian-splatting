@@ -35,8 +35,7 @@ class Scene:
         self.gaussians = gaussians
         # ++新增
         self.has_depth = False
-        self.has_normal = True
-
+        self.has_normal = False
 
         if load_iteration:
             if load_iteration == -1:
