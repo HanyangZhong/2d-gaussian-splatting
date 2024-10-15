@@ -42,6 +42,14 @@ def save_tensor_as_image(tensor, path):
     image = transform(tensor)
     image.save(path)
 
+# 确保有路径
+def ensure_directory_exists(path):
+    """Ensure the directory for the given path exists."""
+    directory = os.path.dirname(path)
+    if not os.path.exists(directory):
+        os.makedirs(directory, exist_ok=True)
+
+
 # 这是整个训练过程的核心函数。它的任务包括
 # 1 初始化场景和模型
 #       将数据集加载到高斯模型中，并创建场景对象。
@@ -137,10 +145,14 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 save_path_rendered = f"{args.model_path}/debug/rendered_normal_{iteration}.png"
                 save_path_gt = f"{args.model_path}/debug/gt_normal_{iteration}.png"
 
+                # 确保目录存在
+                ensure_directory_exists(save_path_rendered)
+                ensure_directory_exists(save_path_gt)
+
                 # 保存渲染和真实的法线图
                 save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
                 save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
-                print(f"Saved rendered and GT normals for iteration {iteration}")
+                # print(f"Saved rendered and GT normals for iteration {iteration}")
 
 
         # 下面都是属于正则化，没有真值，主要是约束
@@ -227,36 +239,36 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
                 # 到了致密化间隔了
                 # 该过程会根据当前视角的点密度和梯度信息，动态增加或者修剪高斯点。密度化可以确保模型捕捉到更多的场景细节，而修剪则是为了去掉不必要的点，从而避免过多的计算负担。
-                # if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                #     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                #     # 密度化的梯度阈值 --- 这个值控制了哪些高斯点需要被加入密度化计算，基于它们的梯度大小
-                #     # 表示是否要根据点的不透明度来剔除高斯点 --- 如果某些点的透明度过高，它们可能会被剔除
-                #     # 表示场景中摄像机的范围 --- 可能会影响到密度化的点的选择
-                #     # 用于剔除点的大小阈值 --- 当迭代次数超过 opt.opacity_reset_interval 时，阈值为20，否则为 None
-                #     gaussians.densify_and_prune(opt.densify_grad_threshold, opt.opacity_cull, scene.cameras_extent, size_threshold)
+                if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                    size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                    # 密度化的梯度阈值 --- 这个值控制了哪些高斯点需要被加入密度化计算，基于它们的梯度大小
+                    # 表示是否要根据点的不透明度来剔除高斯点 --- 如果某些点的透明度过高，它们可能会被剔除
+                    # 表示场景中摄像机的范围 --- 可能会影响到密度化的点的选择
+                    # 用于剔除点的大小阈值 --- 当迭代次数超过 opt.opacity_reset_interval 时，阈值为20，否则为 None
+                    gaussians.densify_and_prune(opt.densify_grad_threshold, opt.opacity_cull, scene.cameras_extent, size_threshold)
 
                 # ++改 在迭代达到致密化间隔时，动态调整高斯点
-                if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                    size_threshold = 20
-                    # ++从深度图中计算梯度，检测几何变化区域
-                    if scene.has_depth:
-                        # ++要测试
-                        some_threshold = 5
-                        gt_depth = viewpoint_cam.depth_image.cuda()
-                        depth_gradients = torch.abs(torch.gradient(gt_depth))  # 计算深度图梯度
-                        high_gradient_mask = (depth_gradients > some_threshold)  # 根据阈值筛选高几何变化区域
+                # if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                #     size_threshold = 20
+                #     # ++从深度图中计算梯度，检测几何变化区域
+                #     if scene.has_depth:
+                #         # ++要测试
+                #         some_threshold = 5
+                #         gt_depth = viewpoint_cam.depth_image.cuda()
+                #         depth_gradients = torch.abs(torch.gradient(gt_depth))  # 计算深度图梯度
+                #         high_gradient_mask = (depth_gradients > some_threshold)  # 根据阈值筛选高几何变化区域
 
-                        # ++将高几何变化区域加入到高斯点密度调整中
-                        gaussians.densify_and_prune(
-                            opt.densify_grad_threshold, 
-                            opt.opacity_cull, 
-                            scene.cameras_extent, 
-                            size_threshold, 
-                            high_gradient_mask
-                        )
-                    else:
-                        # ++ 如果没有深度图，则使用原来的密度化方式
-                        gaussians.densify_and_prune(opt.densify_grad_threshold, opt.opacity_cull, scene.cameras_extent, size_threshold)
+                #         # ++将高几何变化区域加入到高斯点密度调整中
+                #         gaussians.densify_and_prune(
+                #             opt.densify_grad_threshold, 
+                #             opt.opacity_cull, 
+                #             scene.cameras_extent, 
+                #             size_threshold, 
+                #             high_gradient_mask
+                #         )
+                #     else:
+                #         # ++ 如果没有深度图，则使用原来的密度化方式
+                #         gaussians.densify_and_prune(opt.densify_grad_threshold, opt.opacity_cull, scene.cameras_extent, size_threshold)
                 
                 # 在指定的迭代间隔（opt.opacity_reset_interval）后，或者在白色背景下初次密度化时，会对高斯点的不透明度进行重置
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
