@@ -121,11 +121,11 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, depth_folde
         elif depth_image is None:
             # only have normal
             suplmentary_image_type = 1
-            print("Have depth image")
+            print("Have normal image")
         elif normal_image is None:
             # only have depth
             suplmentary_image_type = 2
-            print("Have normal image")
+            print("Have depth image")
         else:
             # have both
             suplmentary_image_type = 3
