@@ -41,6 +41,7 @@ def save_tensor_as_image(tensor, path):
     transform = T.ToPILImage()
     image = transform(tensor)
     image.save(path)
+    # print('saved in ',path)
 
 # 确保有路径
 def ensure_directory_exists(path):
@@ -141,9 +142,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             # print('using Normal L1 as',normal_image_loss)
 
             # 每10次迭代保存一次法线图
-            if iteration % 10 == 0:
-                save_path_rendered = f"{path}/debug/rendered_normal_{iteration}.png"
-                save_path_gt = f"{path}/debug/gt_normal_{iteration}.png"
+            if iteration % 100 == 0:
+                # print('path ',scene.model_path)
+                save_path_rendered = scene.model_path + f"/debug/rendered_normal_{iteration}.png"
+                save_path_gt = scene.model_path + f"/debug/gt_normal_{iteration}.png"
 
                 # 确保目录存在
                 ensure_directory_exists(save_path_rendered)
