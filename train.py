@@ -96,13 +96,22 @@ def save_tensor_as_image_with_normals(image_tensor, normal_tensor, path, step=10
     plt.savefig(path, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-
 # 确保有路径
 def ensure_directory_exists(path):
     """Ensure the directory for the given path exists."""
     directory = os.path.dirname(path)
     if not os.path.exists(directory):
         os.makedirs(directory, exist_ok=True)
+
+
+# 使用卷积核对法线进行平滑
+import torch.nn.functional as F
+
+def smooth_normals(normal_tensor, kernel_size=5):
+    # 生成卷积核进行平滑
+    kernel = torch.ones((1, 1, kernel_size, kernel_size), device=normal_tensor.device) / (kernel_size * kernel_size)
+    normal_smoothed = F.conv2d(normal_tensor.unsqueeze(0), kernel, padding=kernel_size//2)
+    return normal_smoothed.squeeze(0)
 
 
 # 这是整个训练过程的核心函数。它的任务包括
@@ -192,10 +201,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if scene.has_normal:
             rendered_normal = render_pkg['rend_normal']  # 渲染得到的法线图
             gt_normal = viewpoint_cam.normal_image.cuda()  # 真实的法线图
+
+            # 对法线进行平滑处理
+            smoothed_gt_normal = smooth_normals(gt_normal)
+            smoothed_rendered_normal = smooth_normals(rendered_normal)
+
             # 使用余弦相似度计算法线对齐损失
-            cos_similarity = (rendered_normal * gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
+            cos_similarity = (smoothed_rendered_normal * smoothed_gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
             normal_image_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
-            lambda_normal_image = opt.lambda_normal_image if iteration > 3000 else 0.0
+            # lambda_normal_image = opt.lambda_normal_image if iteration > 3000 else 0.0
+            # 动态调整法线损失的权重
+            lambda_normal_image = min(0.05, 0.01 + (iteration / 15000) * 0.04)
+
             normal_image_loss = lambda_normal_image * normal_image_loss
             # print('using Normal L1 as',normal_image_loss)
 
