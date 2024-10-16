@@ -130,6 +130,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             rendered_depth = render_pkg['surf_depth']  # 渲染得到的深度图
             gt_depth = viewpoint_cam.depth_image.cuda()  # 真实的深度图
             depth_loss = l1_loss(rendered_depth, gt_depth)  # 使用 L1 损失计算深度差异
+            lambda_depth_loss = opt.lambda_depth_loss if iteration > 7000 else 0.0
+            depth_loss = lambda_depth_loss * depth_loss
             # print('using Depth L1 as',depth_loss)
 
         # ++如果场景中有法线图，则计算法线图损失
@@ -139,6 +141,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             # 使用余弦相似度计算法线对齐损失
             cos_similarity = (rendered_normal * gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
             normal_image_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
+            lambda_normal_image = opt.lambda_normal_image if iteration > 3000 else 0.0
+            normal_image_loss = lambda_normal_image * normal_image_loss
             # print('using Normal L1 as',normal_image_loss)
 
             # 每10次迭代保存一次法线图
@@ -185,7 +189,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # total_loss = loss + dist_loss + normal_loss
         
         # ++改 总损失：真值损失 + 正则化损失（如果适用）
-        total_loss = loss + 0.5 * depth_loss + 0.5* normal_image_loss + normal_loss + dist_loss
+        total_loss = loss + depth_loss + normal_image_loss + normal_loss + dist_loss
 
         total_loss.backward()
 
