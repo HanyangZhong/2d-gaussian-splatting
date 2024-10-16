@@ -212,7 +212,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 # 保存渲染和真实的法线图，并叠加法向线条
                 save_tensor_as_image_with_normals(rendered_normal * 0.5 + 0.5, rendered_normal, save_path_rendered)  # 渲染的法向
                 save_tensor_as_image_with_normals(gt_normal * 0.5 + 0.5, gt_normal, save_path_gt)  # 真实的法向
-                print(f"Saved rendered and GT normals with normal lines for iteration {iteration}")
+                # print(f"Saved rendered and GT normals with normal lines for iteration {iteration}")
 
 
         # 下面都是属于正则化，没有真值，主要是约束
