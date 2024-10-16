@@ -32,16 +32,16 @@ import torchvision.transforms as T
 from PIL import Image
 
 # 保存 tensor 到 PNG 文件的函数
-# def save_tensor_as_image(tensor, path):
-#     """
-#     将 tensor 保存为 PNG 图像。
-#     """
-#     tensor = tensor.detach().cpu()  # 将 tensor 移到 CPU，并确保没有梯度
-#     tensor = torch.clamp(tensor, 0.0, 1.0)  # 将值限制在 [0, 1] 范围内
-#     transform = T.ToPILImage()
-#     image = transform(tensor)
-#     image.save(path)
-#     # print('saved in ',path)
+def save_tensor_as_image(tensor, path):
+    """
+    将 tensor 保存为 PNG 图像。
+    """
+    tensor = tensor.detach().cpu()  # 将 tensor 移到 CPU，并确保没有梯度
+    tensor = torch.clamp(tensor, 0.0, 1.0)  # 将值限制在 [0, 1] 范围内
+    transform = T.ToPILImage()
+    image = transform(tensor)
+    image.save(path)
+    # print('saved in ',path)
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -110,9 +110,17 @@ import torch.nn.functional as F
 def smooth_normals(normal_tensor, kernel_size=5):
     # 生成卷积核进行平滑
     kernel = torch.ones((1, 1, kernel_size, kernel_size), device=normal_tensor.device) / (kernel_size * kernel_size)
-    normal_smoothed = F.conv2d(normal_tensor.unsqueeze(0), kernel, padding=kernel_size//2)
-    return normal_smoothed.squeeze(0)
 
+    # Apply convolution to each channel separately
+    smoothed_channels = []
+    for i in range(3):  # For each channel (x, y, z)
+        channel = normal_tensor[i].unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
+        smoothed_channel = F.conv2d(channel, kernel, padding=kernel_size//2)
+        smoothed_channels.append(smoothed_channel.squeeze(0))  # Remove the extra dimensions
+
+    # Stack the smoothed channels back together
+    normal_smoothed = torch.cat(smoothed_channels, dim=0)
+    return normal_smoothed
 
 # 这是整个训练过程的核心函数。它的任务包括
 # 1 初始化场景和模型
