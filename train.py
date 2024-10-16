@@ -146,7 +146,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             # print('using Normal L1 as',normal_image_loss)
 
             # 每10次迭代保存一次法线图
-            if iteration % 100 == 0:
+            if iteration % 500 == 0:
                 # print('path ',scene.model_path)
                 save_path_rendered = scene.model_path + f"/debug/rendered_normal_{iteration}.png"
                 save_path_gt = scene.model_path + f"/debug/gt_normal_{iteration}.png"
@@ -157,20 +157,20 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
                 # 保存渲染和真实的法线图
                 save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
-                save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
+                # save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
                 # print(f"Saved rendered and GT normals for iteration {iteration}")
 
 
         # 下面都是属于正则化，没有真值，主要是约束
         # regularization
         # 法线一致性  权重
-        lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
+        # lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
         # 深度失真项 权重
-        lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
+        # lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
 
         # ++改 正则化的权重可以动态调节，或者直接关闭
-        # lambda_normal = opt.lambda_normal if (iteration > 7000 and not scene.has_normal) else 0.0
-        # lambda_dist = opt.lambda_dist if (iteration > 3000 and not scene.has_depth) else 0.0
+        lambda_normal = opt.lambda_normal if (iteration > 7000 and not scene.has_normal) else 0.0
+        lambda_dist = opt.lambda_dist if (iteration > 3000 and not scene.has_depth) else 0.0
 
         # 深度失真项
         rend_dist = render_pkg["rend_dist"]
