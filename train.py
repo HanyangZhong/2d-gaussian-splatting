@@ -219,7 +219,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             normal_image_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
             # lambda_normal_image = opt.lambda_normal_image if iteration > 3000 else 0.0
             # 动态调整法线损失的权重
-            lambda_normal_image = min(0.05, 0.01 + (iteration / 15000) * 0.04)
+            lambda_normal_image = min(0.05, 0.001 + (iteration / 20000) * 0.04)
 
             normal_image_loss = lambda_normal_image * normal_image_loss
             # print('using Normal L1 as',normal_image_loss)
@@ -229,14 +229,16 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 # print('path ',scene.model_path)
                 save_path_rendered = scene.model_path + f"/debug/rendered_normal_{iteration}.png"
                 save_path_gt = scene.model_path + f"/debug/gt_normal_{iteration}.png"
+                save_path_smooth_rendered = scene.model_path + f"/debug/smooth_rendered_normal_{iteration}.png"
+                save_path_smooth_gt = scene.model_path + f"/debug/smooth_gt_normal_{iteration}.png"
 
                 # 确保目录存在
                 ensure_directory_exists(save_path_rendered)
                 ensure_directory_exists(save_path_gt)
 
                 # 保存渲染和真实的法线图
-                save_tensor_as_image(smoothed_rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
-                save_tensor_as_image(smoothed_gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
+                save_tensor_as_image(smoothed_rendered_normal * 0.5 + 0.5, save_path_smooth_rendered)  # 归一化到 [0, 1] 区间
+                save_tensor_as_image(smoothed_gt_normal * 0.5 + 0.5, save_path_smooth_gt)  # 归一化到 [0, 1] 区间
                 # print(f"Saved rendered and GT normals for iteration {iteration}")
 
                 # 保存渲染和真实的法线图，并叠加法向线条
