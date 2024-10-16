@@ -235,8 +235,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 ensure_directory_exists(save_path_gt)
 
                 # 保存渲染和真实的法线图
-                # save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
-                # save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
+                save_tensor_as_image(smoothed_rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
+                save_tensor_as_image(smoothed_gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
                 # print(f"Saved rendered and GT normals for iteration {iteration}")
 
                 # 保存渲染和真实的法线图，并叠加法向线条
