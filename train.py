@@ -202,7 +202,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             gt_depth = viewpoint_cam.depth_image.cuda()  # 真实的深度图
             depth_loss = l1_loss(rendered_depth, gt_depth)  # 使用 L1 损失计算深度差异
             lambda_depth_loss = opt.lambda_depth_loss if iteration > 7000 else 0.0
-            depth_loss = lambda_depth_loss * depth_loss
+            depth_loss = 0 * lambda_depth_loss * depth_loss
             # print('using Depth L1 as',depth_loss)
 
         # ++如果场景中有法线图，则计算法线图损失
@@ -221,7 +221,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             # 动态调整法线损失的权重
             lambda_normal_image = min(0.05, 0.001 + (iteration / 20000) * 0.04)
 
-            normal_image_loss = lambda_normal_image * normal_image_loss
+            normal_image_loss = 0* lambda_normal_image * normal_image_loss
             # print('using Normal L1 as',normal_image_loss)
 
             # 每10次迭代保存一次法线图

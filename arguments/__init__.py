@@ -85,9 +85,10 @@ class OptimizationParams(ParamGroup):
         self.percent_dense = 0.01
         self.lambda_dssim = 0.2
         # 原本 0 
-        self.lambda_dist = 0.05
+        self.lambda_dist = 0.00
         self.lambda_normal = 0.05
         self.opacity_cull = 0.05
+        
         self.lambda_depth_loss = 0.03
         self.lambda_normal_image = 0.05
 
