@@ -32,16 +32,65 @@ import torchvision.transforms as T
 from PIL import Image
 
 # 保存 tensor 到 PNG 文件的函数
-def save_tensor_as_image(tensor, path):
+# def save_tensor_as_image(tensor, path):
+#     """
+#     将 tensor 保存为 PNG 图像。
+#     """
+#     tensor = tensor.detach().cpu()  # 将 tensor 移到 CPU，并确保没有梯度
+#     tensor = torch.clamp(tensor, 0.0, 1.0)  # 将值限制在 [0, 1] 范围内
+#     transform = T.ToPILImage()
+#     image = transform(tensor)
+#     image.save(path)
+#     # print('saved in ',path)
+
+import matplotlib.pyplot as plt
+import numpy as np
+# 保存 tensor 到 PNG 文件并叠加法向线条
+def save_tensor_as_image_with_normals(image_tensor, normal_tensor, path, step=10):
     """
-    将 tensor 保存为 PNG 图像。
+    将 tensor 保存为 PNG 图像，并在图像上叠加法向线条。
+    
+    :param image_tensor: 渲染的图像 tensor，shape 为 (3, H, W)
+    :param normal_tensor: 法向 tensor，shape 为 (3, H, W)
+    :param path: 保存的文件路径
+    :param step: 控制法向线条的密度，每 step 个像素绘制一个法向线条
     """
-    tensor = tensor.detach().cpu()  # 将 tensor 移到 CPU，并确保没有梯度
-    tensor = torch.clamp(tensor, 0.0, 1.0)  # 将值限制在 [0, 1] 范围内
-    transform = T.ToPILImage()
-    image = transform(tensor)
-    image.save(path)
-    # print('saved in ',path)
+    image_tensor = image_tensor.detach().cpu()
+    image_tensor = torch.clamp(image_tensor, 0.0, 1.0)
+
+    # 将渲染的图像 tensor 转换为 numpy 数组
+    image_np = image_tensor.permute(1, 2, 0).numpy()
+
+    # 将法向 tensor 转换为 numpy 数组
+    normal_tensor = normal_tensor.detach().cpu()
+    normal_np = normal_tensor.permute(1, 2, 0).numpy()
+
+    # 创建一个 matplotlib figure
+    plt.figure(figsize=(10, 10))
+
+    # 显示渲染的图像
+    plt.imshow(image_np)
+
+    # 获取图像的形状
+    height, width, _ = image_np.shape
+
+    # 绘制法向线条
+    for y in range(0, height, step):
+        for x in range(0, width, step):
+            # 法向方向
+            nx, ny, nz = normal_np[y, x]
+            # 线条的起点和终点
+            start_point = (x, y)
+            end_point = (x + int(nx * step), y + int(ny * step))
+            # 绘制线条
+            plt.arrow(x, y, nx * step, ny * step, color='red', head_width=2, head_length=2)
+
+    # 关闭坐标轴
+    plt.axis('off')
+
+    # 保存图像
+    plt.savefig(path, bbox_inches='tight', pad_inches=0)
+    plt.close()
 
 # 确保有路径
 def ensure_directory_exists(path):
@@ -156,9 +205,14 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 ensure_directory_exists(save_path_gt)
 
                 # 保存渲染和真实的法线图
-                save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
+                # save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
                 # save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
                 # print(f"Saved rendered and GT normals for iteration {iteration}")
+
+                # 保存渲染和真实的法线图，并叠加法向线条
+                save_tensor_as_image_with_normals(rendered_normal * 0.5 + 0.5, rendered_normal, save_path_rendered)  # 渲染的法向
+                save_tensor_as_image_with_normals(gt_normal * 0.5 + 0.5, gt_normal, save_path_gt)  # 真实的法向
+                print(f"Saved rendered and GT normals with normal lines for iteration {iteration}")
 
 
         # 下面都是属于正则化，没有真值，主要是约束
