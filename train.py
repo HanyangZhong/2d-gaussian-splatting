@@ -46,14 +46,15 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
 # 保存 tensor 到 PNG 文件并叠加法向线条
-def save_tensor_as_image_with_normals(image_tensor, normal_tensor, path, step=10):
+def save_tensor_as_image_with_normals(image_tensor, normal_tensor, path, step=10, scale=10):
     """
-    将 tensor 保存为 PNG 图像，并在图像上叠加法向线条。
+    将 tensor 保存为 PNG 图像,并在图像上叠加法向线条。法向向量模长为1,并以点云为起点。
     
-    :param image_tensor: 渲染的图像 tensor，shape 为 (3, H, W)
-    :param normal_tensor: 法向 tensor，shape 为 (3, H, W)
+    :param image_tensor: 渲染的图像 tensor,shape 为 (3, H, W)
+    :param normal_tensor: 法向 tensor,shape 为 (3, H, W)
     :param path: 保存的文件路径
     :param step: 控制法向线条的密度，每 step 个像素绘制一个法向线条
+    :param scale: 法向线条的长度比例
     """
     image_tensor = image_tensor.detach().cpu()
     image_tensor = torch.clamp(image_tensor, 0.0, 1.0)
@@ -61,9 +62,11 @@ def save_tensor_as_image_with_normals(image_tensor, normal_tensor, path, step=10
     # 将渲染的图像 tensor 转换为 numpy 数组
     image_np = image_tensor.permute(1, 2, 0).numpy()
 
-    # 将法向 tensor 转换为 numpy 数组
+    # 将法向 tensor 转换为 numpy 数组，并归一化法向模长
     normal_tensor = normal_tensor.detach().cpu()
     normal_np = normal_tensor.permute(1, 2, 0).numpy()
+    norm_length = np.linalg.norm(normal_np, axis=-1, keepdims=True) + 1e-8  # 避免除以0
+    normal_np = normal_np / norm_length  # 归一化法向
 
     # 创建一个 matplotlib figure
     plt.figure(figsize=(10, 10))
@@ -77,13 +80,14 @@ def save_tensor_as_image_with_normals(image_tensor, normal_tensor, path, step=10
     # 绘制法向线条
     for y in range(0, height, step):
         for x in range(0, width, step):
-            # 法向方向
+            # 获取法向方向（已经归一化）
             nx, ny, nz = normal_np[y, x]
-            # 线条的起点和终点
+            # 线条的起点是点云的位置
             start_point = (x, y)
-            end_point = (x + int(nx * step), y + int(ny * step))
+            # 根据法向方向绘制线条，以点云为起点，法向为方向
+            end_point = (x + int(nx * scale), y + int(ny * scale))
             # 绘制线条
-            plt.arrow(x, y, nx * step, ny * step, color='red', head_width=2, head_length=2)
+            plt.arrow(x, y, nx * scale, ny * scale, color='red', head_width=1, head_length=1)
 
     # 关闭坐标轴
     plt.axis('off')
@@ -91,6 +95,7 @@ def save_tensor_as_image_with_normals(image_tensor, normal_tensor, path, step=10
     # 保存图像
     plt.savefig(path, bbox_inches='tight', pad_inches=0)
     plt.close()
+
 
 # 确保有路径
 def ensure_directory_exists(path):
