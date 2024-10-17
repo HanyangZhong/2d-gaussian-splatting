@@ -214,14 +214,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             smoothed_gt_normal = smooth_normals(gt_normal)
             smoothed_rendered_normal = smooth_normals(rendered_normal)
 
+            normal_Ll1 = l1_loss(smoothed_rendered_normal, smoothed_gt_normal)
+
             # 使用余弦相似度计算法线对齐损失
-            cos_similarity = (smoothed_rendered_normal * smoothed_gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
-            normal_image_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
+            # cos_similarity = (smoothed_rendered_normal * smoothed_gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
+            # normal_image_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
             # lambda_normal_image = opt.lambda_normal_image if iteration > 3000 else 0.0
             # 动态调整法线损失的权重
             lambda_normal_image = min(0.05, 0.001 + (iteration / 20000) * 0.04)
 
-            normal_image_loss = 0* lambda_normal_image * normal_image_loss
+            # normal_image_loss = 0* lambda_normal_image * normal_image_loss
+
+            normal_image_loss = lambda_normal_image * normal_Ll1 + lambda_normal_image * (1.0 - ssim(smoothed_rendered_normal, smoothed_gt_normal))
             # print('using Normal L1 as',normal_image_loss)
 
             # 每10次迭代保存一次法线图
@@ -242,8 +246,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 # print(f"Saved rendered and GT normals for iteration {iteration}")
 
                 # 保存渲染和真实的法线图，并叠加法向线条
-                save_tensor_as_image_with_normals(rendered_normal * 0.5 + 0.5, rendered_normal, save_path_rendered)  # 渲染的法向
-                save_tensor_as_image_with_normals(gt_normal * 0.5 + 0.5, gt_normal, save_path_gt)  # 真实的法向
+                # save_tensor_as_image_with_normals(rendered_normal * 0.5 + 0.5, rendered_normal, save_path_rendered)  # 渲染的法向
+                # save_tensor_as_image_with_normals(gt_normal * 0.5 + 0.5, gt_normal, save_path_gt)  # 真实的法向
                 # print(f"Saved rendered and GT normals with normal lines for iteration {iteration}")
 
 
