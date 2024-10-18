@@ -196,29 +196,32 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         #         权重 反过来                          权重         SSIM（结构相似性指标）
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         
+
+        rendered_depth = render_pkg['surf_depth']  # 渲染得到的深度图
+        rendered_normal = render_pkg['rend_normal']  # 渲染得到的法线图
+
         # ++如果场景中有深度图，则计算深度图损失
         if scene.has_depth:
-            rendered_depth = render_pkg['surf_depth']  # 渲染得到的深度图
             gt_depth = viewpoint_cam.depth_image.cuda()  # 真实的深度图
             depth_loss = l1_loss(rendered_depth, gt_depth)  # 使用 L1 损失计算深度差异
-            lambda_depth_loss = opt.lambda_depth_loss if iteration > 7000 else 0.0
-            depth_loss = 0 * lambda_depth_loss * depth_loss
+            lambda_depth_loss = opt.lambda_depth_loss if iteration > 3000 else 0.0
+            depth_loss = lambda_depth_loss * depth_loss
             # print('using Depth L1 as',depth_loss)
 
         # ++如果场景中有法线图，则计算法线图损失
         if scene.has_normal:
-            rendered_normal = render_pkg['rend_normal']  # 渲染得到的法线图
             gt_normal = viewpoint_cam.normal_image.cuda()  # 真实的法线图
 
             # 对法线进行平滑处理
-            smoothed_gt_normal = smooth_normals(gt_normal)
-            smoothed_rendered_normal = smooth_normals(rendered_normal)
+            # smoothed_gt_normal = smooth_normals(gt_normal)
+            # smoothed_rendered_normal = smooth_normals(rendered_normal)
 
             normal_Ll1 = l1_loss(rendered_normal, gt_normal)
 
-            # 使用余弦相似度计算法线对齐损失
+            # 使用余弦相似度计算法线对齐损失 效果不好
             # cos_similarity = (smoothed_rendered_normal * smoothed_gt_normal).sum(dim=0)  # 渲染法线与真实法线的点积
             # normal_image_loss = 1.0 - cos_similarity.mean()  # 1 - 余弦相似度作为损失
+            # 这样加效果也不好
             lambda_normal_image = opt.lambda_normal_image if iteration > 9000 else 0.0
             # 动态调整法线损失的权重
             # lambda_normal_image = min(0.05, 0.001 + (iteration / 20000) * 0.04)
@@ -228,27 +231,34 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             normal_image_loss = 1 * (lambda_normal_image * normal_Ll1 + lambda_normal_image * (1.0 - ssim(rendered_normal, gt_normal)))
             # print('using Normal L1 as',normal_image_loss)
 
-            # 每10次迭代保存一次法线图
-            if iteration % 500 == 0:
-                # print('path ',scene.model_path)
-                save_path_rendered = scene.model_path + f"/debug/rendered_normal_{iteration}.png"
-                save_path_gt = scene.model_path + f"/debug/gt_normal_{iteration}.png"
-                save_path_smooth_rendered = scene.model_path + f"/debug/smooth_rendered_normal_{iteration}.png"
-                save_path_smooth_gt = scene.model_path + f"/debug/smooth_gt_normal_{iteration}.png"
+        # 每500次迭代保存一次法线图
+        if iteration % 500 == 0:
+            # print('path ',scene.model_path)
+            save_path_rendered_norm = scene.model_path + f"/debug/rendered_normal_{iteration}.png"
+            save_path_gt_norm = scene.model_path + f"/debug/gt_normal_{iteration}.png"
+            save_path_rendered_depth = scene.model_path + f"/debug/rendered_depth_{iteration}.png"
+            save_path_gt_depth = scene.model_path + f"/debug/gt_depth_{iteration}.png"
 
-                # 确保目录存在
-                ensure_directory_exists(save_path_rendered)
-                ensure_directory_exists(save_path_gt)
+            # 确保目录存在
+            ensure_directory_exists(save_path_rendered_norm)
 
-                # 保存渲染和真实的法线图
-                save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered)  # 归一化到 [0, 1] 区间
-                save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt)  # 归一化到 [0, 1] 区间
-                # print(f"Saved rendered and GT normals for iteration {iteration}")
+            # 保存真实的法线深度图
+            if scene.has_normal:
+                save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt_norm)  # 归一化到 [0, 1] 区间
 
-                # 保存渲染和真实的法线图，并叠加法向线条
-                # save_tensor_as_image_with_normals(rendered_normal * 0.5 + 0.5, rendered_normal, save_path_rendered)  # 渲染的法向
-                # save_tensor_as_image_with_normals(gt_normal * 0.5 + 0.5, gt_normal, save_path_gt)  # 真实的法向
-                # print(f"Saved rendered and GT normals with normal lines for iteration {iteration}")
+            if scene.has_depth:
+                save_tensor_as_image(gt_depth * 0.5 + 0.5, save_path_gt_depth)  # 归一化到 [0, 1] 区间
+
+            # 保存渲染图
+            save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered_norm)  # 归一化到 [0, 1] 区间
+            save_tensor_as_image(rendered_depth * 0.5 + 0.5, save_path_rendered_depth)  # 归一化到 [0, 1] 区间
+
+            # print(f"Saved rendered and GT normals for iteration {iteration}")
+
+            # 保存渲染和真实的法线图，并叠加法向线条
+            # save_tensor_as_image_with_normals(rendered_normal * 0.5 + 0.5, rendered_normal, save_path_rendered)  # 渲染的法向
+            # save_tensor_as_image_with_normals(gt_normal * 0.5 + 0.5, gt_normal, save_path_gt)  # 真实的法向
+            # print(f"Saved rendered and GT normals with normal lines for iteration {iteration}")
 
 
         # 下面都是属于正则化，没有真值，主要是约束
@@ -268,7 +278,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         rend_normal  = render_pkg['rend_normal']
         # 表面法线
         surf_normal = render_pkg['surf_normal']
-        # 法线误差 loss
+        # 法线误差 loss 最重要的法线一致性正则化项
         normal_error = (1 - (rend_normal * surf_normal).sum(dim=0))[None]
         normal_loss = lambda_normal * (normal_error).mean()
         # 深度失真
