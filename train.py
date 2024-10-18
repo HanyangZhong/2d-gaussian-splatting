@@ -231,36 +231,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             normal_image_loss = 1 * (lambda_normal_image * normal_Ll1 + lambda_normal_image * (1.0 - ssim(rendered_normal, gt_normal)))
             # print('using Normal L1 as',normal_image_loss)
 
-        # 每500次迭代保存一次法线图
-        if iteration % 500 == 0:
-            # print('path ',scene.model_path)
-            save_path_rendered_norm = scene.model_path + f"/debug/rendered_normal_{iteration}.png"
-            save_path_gt_norm = scene.model_path + f"/debug/gt_normal_{iteration}.png"
-            save_path_rendered_depth = scene.model_path + f"/debug/rendered_depth_{iteration}.png"
-            save_path_gt_depth = scene.model_path + f"/debug/gt_depth_{iteration}.png"
-
-            # 确保目录存在
-            ensure_directory_exists(save_path_rendered_norm)
-
-            # 保存真实的法线深度图
-            if scene.has_normal:
-                save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt_norm)  # 归一化到 [0, 1] 区间
-
-            if scene.has_depth:
-                save_tensor_as_image(gt_depth * 0.5 + 0.5, save_path_gt_depth)  # 归一化到 [0, 1] 区间
-
-            # 保存渲染图
-            save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered_norm)  # 归一化到 [0, 1] 区间
-            save_tensor_as_image(rendered_depth * 0.5 + 0.5, save_path_rendered_depth)  # 归一化到 [0, 1] 区间
-
-            # print(f"Saved rendered and GT normals for iteration {iteration}")
-
-            # 保存渲染和真实的法线图，并叠加法向线条
-            # save_tensor_as_image_with_normals(rendered_normal * 0.5 + 0.5, rendered_normal, save_path_rendered)  # 渲染的法向
-            # save_tensor_as_image_with_normals(gt_normal * 0.5 + 0.5, gt_normal, save_path_gt)  # 真实的法向
-            # print(f"Saved rendered and GT normals with normal lines for iteration {iteration}")
-
-
         # 下面都是属于正则化，没有真值，主要是约束
         # regularization
         # 法线一致性  权重
@@ -294,6 +264,42 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         total_loss.backward()
 
         iter_end.record()
+
+        # 表面深度
+        surf_depth = render_pkg['surf_depth']
+        
+        # 每500次迭代保存一次法线图
+        if iteration % 500 == 0:
+            # print('path ',scene.model_path)
+            save_path_rendered_norm = scene.model_path + f"/debug/rendered_normal_{iteration}.png"
+            save_path_gt_norm = scene.model_path + f"/debug/gt_normal_{iteration}.png"
+            save_path_rendered_depth = scene.model_path + f"/debug/rendered_depth_{iteration}.png"
+            save_path_gt_depth = scene.model_path + f"/debug/gt_depth_{iteration}.png"
+            save_path_rendered_surface_norm = scene.model_path + f"/debug/rendered_surf_norm_{iteration}.png"
+            save_path_rendered_surface_depth = scene.model_path + f"/debug/rendered_surf_depth_{iteration}.png"
+
+            # 确保目录存在
+            ensure_directory_exists(save_path_rendered_norm)
+
+            # 保存真实的法线深度图
+            if scene.has_normal:
+                save_tensor_as_image(gt_normal * 0.5 + 0.5, save_path_gt_norm)  # 归一化到 [0, 1] 区间
+
+            if scene.has_depth:
+                save_tensor_as_image(gt_depth * 0.5 + 0.5, save_path_gt_depth)  # 归一化到 [0, 1] 区间
+
+            # 保存渲染图
+            save_tensor_as_image(rendered_normal * 0.5 + 0.5, save_path_rendered_norm)  # 归一化到 [0, 1] 区间
+            save_tensor_as_image(rendered_depth * 0.5 + 0.5, save_path_rendered_depth)  # 归一化到 [0, 1] 区间
+            save_tensor_as_image(surf_normal * 0.5 + 0.5, save_path_rendered_surface_norm)  # 归一化到 [0, 1] 区间
+            save_tensor_as_image(surf_depth * 0.5 + 0.5, save_path_rendered_surface_depth)  # 归一化到 [0, 1] 区间
+
+            # print(f"Saved rendered and GT normals for iteration {iteration}")
+
+            # 保存渲染和真实的法线图，并叠加法向线条
+            # save_tensor_as_image_with_normals(rendered_normal * 0.5 + 0.5, rendered_normal, save_path_rendered)  # 渲染的法向
+            # save_tensor_as_image_with_normals(gt_normal * 0.5 + 0.5, gt_normal, save_path_gt)  # 真实的法向
+            # print(f"Saved rendered and GT normals with normal lines for iteration {iteration}")
 
         # Step5 更新
         with torch.no_grad():
