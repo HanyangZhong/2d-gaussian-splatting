@@ -105,15 +105,36 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, depth_folde
         image = Image.open(image_path)
 
         # ++ 增加深度图和法线图的加载
-        depth_path = os.path.join(depth_folder, f"{image_name}.jpg") if depth_folder else None
-        normal_path = os.path.join(normal_folder, f"{image_name}.jpg") if normal_folder else None
+        # depth_path = os.path.join(depth_folder, f"{image_name}.jpg") if depth_folder else None
+        # normal_path = os.path.join(normal_folder, f"{image_name}.jpg") if normal_folder else None
 
         # 加载深度图
-        depth_image = Image.open(depth_path) if depth_path and os.path.exists(depth_path) else None
+        # depth_image = Image.open(depth_path) if depth_path and os.path.exists(depth_path) else None
+        # print(" depth type is:",type(depth_image))
 
         # 加载法线图
-        normal_image = Image.open(normal_path) if normal_path and os.path.exists(normal_path) else None
-        print("normal type is:",type(normal_image))
+        # normal_image = Image.open(normal_path) if normal_path and os.path.exists(normal_path) else None
+        # print(" normal type is:",type(normal_image))
+
+        # 尝试加载深度图
+        depth_image = None
+        if depth_folder:
+            depth_path_png = os.path.join(depth_folder, f"{image_name}.png")
+            depth_path_jpg = os.path.join(depth_folder, f"{image_name}.jpg")
+            if os.path.exists(depth_path_png):
+                depth_image = Image.open(depth_path_png)
+            elif os.path.exists(depth_path_jpg):
+                depth_image = Image.open(depth_path_jpg)
+
+        # 尝试加载法线图
+        normal_image = None
+        if normal_folder:
+            normal_path_png = os.path.join(normal_folder, f"{image_name}.png")
+            normal_path_jpg = os.path.join(normal_folder, f"{image_name}.jpg")
+            if os.path.exists(normal_path_png):
+                normal_image = Image.open(normal_path_png)
+            elif os.path.exists(normal_path_jpg):
+                normal_image = Image.open(normal_path_jpg)
 
         if depth_image is None and normal_image is None:
             suplmentary_image_type = 0
