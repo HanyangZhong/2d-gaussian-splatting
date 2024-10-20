@@ -89,7 +89,7 @@ class OptimizationParams(ParamGroup):
         self.lambda_normal = 0.05
         self.opacity_cull = 0.05
         
-        self.lambda_depth_loss = 0.03
+        self.lambda_depth_loss = 0.1
         self.lambda_normal_image = 0.1
 
         self.densification_interval = 100

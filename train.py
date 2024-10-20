@@ -203,9 +203,12 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # ++如果场景中有深度图，则计算深度图损失
         if scene.has_depth:
             gt_depth = viewpoint_cam.depth_image.cuda()  # 真实的深度图
-            depth_loss = l1_loss(rendered_depth, gt_depth)  # 使用 L1 损失计算深度差异
+            depth_Ll1 = l1_loss(rendered_depth, gt_depth)  # 使用 L1 损失计算深度差异
+
             lambda_depth_loss = opt.lambda_depth_loss if iteration > 3000 else 0.0
-            depth_loss = lambda_depth_loss * depth_loss
+            # depth_loss = lambda_depth_loss * depth_loss
+            # 深度测试loss
+            depth_loss = 1 * (lambda_depth_loss * depth_Ll1 + lambda_depth_loss * (1.0 - ssim(rendered_depth, gt_depth)))
             # print('using Depth L1 as',depth_loss)
 
         # ++如果场景中有法线图，则计算法线图损失
